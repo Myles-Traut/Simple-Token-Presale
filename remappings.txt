@@ -1,2 +1,3 @@
 forge-std/=lib/forge-std/src/
 universal-router/=lib/universal-router/
+@openzeppelin/=lib/openzeppelin-contracts/
