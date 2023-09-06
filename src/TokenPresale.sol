@@ -41,22 +41,25 @@ contract TokenPresale {
     constructor() {
         universalRouter = IUniversalRouter(UNIVERSAL_ROUTER_ADDRESS);
         permit2 = Permit2(PERMIT2_ADDRESS);
-        _rate = 1e6;
+        _rate = 2e3;
     }
 
     /// @param purchaseToken the address of the ERC20 token used to buy HUB
     /// @param amount the the amount of purchaseToken that the user is willing to spend
     /// @param slippage the minimum amount of eth that purchaseToken will be swapped for.
         // Called off-chain using uniswap quoter
-    function buyHub(address purchaseToken, uint256 amount, uint256 slippage) public returns(uint256) {
+    function buyHub(address purchaseToken, uint256 amount, uint256 slippage) public returns(uint256, uint256) {
         //Swap purchaseToken to ETH
         IERC20(purchaseToken).transferFrom(msg.sender, address(this), amount);
 
         permit2.approve(purchaseToken, address(universalRouter), type(uint160).max, type(uint48).max);
+        uint256 balanceBefore =  IERC20(WETH).balanceOf(address(this));
         _swapExactInputSingle(amount, purchaseToken, slippage, block.timestamp + 60);
-        balance = IERC20(WETH).balanceOf(address(this));
+        uint256 balanceAfter = IERC20(WETH).balanceOf(address(this));
+        uint256 amountBought =  balanceAfter - balanceBefore;
+        uint256 hubBought =  amountBought * _rate;
 
-        return balance;
+        return (amountBought, hubBought);
         //hubBought = weiAmount * _rate;
     }
 

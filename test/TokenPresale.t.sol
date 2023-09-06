@@ -59,10 +59,12 @@ contract TokenPresaleTest is Test {
         // uint256 hubBought;
 
         vm.startPrank(alice);
-            uint256 quote = _quote(1650e6);
+            uint256 quote = _quote(1e6);
             console.log("Quote", quote);
-            uint256 ethInContract = tokenPresale.buyHub(address(usdc), 1650e6, quote);
-            console.logUint(ethInContract);
+            (uint256 weth, uint256 hubBought) = tokenPresale.buyHub(address(usdc), 1e6, quote);
+            console.log("WETH", weth);
+            console.log("hubBought", hubBought);
+
     }
 
     function _quote(uint256 _amount) internal returns (uint256 amountOutQuote) {
