@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.19;
+pragma solidity 0.8.17;
 
 import "lib/universal-router/contracts/interfaces/IUniversalRouter.sol";
 import "lib/universal-router/contracts/libraries/Constants.sol";
 import "lib/universal-router/contracts/libraries/Commands.sol";
+import "lib/universal-router/permit2/src/Permit2.sol";
+
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract TokenPresale {
     // sell users HUB tokens based on a rate vs USDC. 1 HUB = 0.5 USDC
@@ -26,14 +29,18 @@ contract TokenPresale {
     address public constant UNIVERSAL_ROUTER_ADDRESS = 0xEf1c6E67703c7BD7107eed8303Fbe6EC2554BF6B;
     address public constant PERMIT2_ADDRESS = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address public constant USDC_ADDRESS = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    IUniversalRouter public universalRouter;
-    IPermit2 public immutable permit2;
+    address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
-    mapping(address user => uint256 hubBalance) public userHubBalance;
+    uint24 public constant poolFee = 3000;
+
+    IUniversalRouter public universalRouter;
+    Permit2 public immutable permit2;
+
+    mapping(address => uint256) public userHubBalance;
 
     constructor() {
         universalRouter = IUniversalRouter(UNIVERSAL_ROUTER_ADDRESS);
-        permit2 = IPermit2(PERMIT2_ADDRESS);
+        permit2 = Permit2(PERMIT2_ADDRESS);
         _rate = 1e6;
     }
 
@@ -43,8 +50,11 @@ contract TokenPresale {
         // Called off-chain using uniswap quoter
     function buyHub(address purchaseToken, uint256 amount, uint256 slippage) public returns(uint256) {
         //Swap purchaseToken to ETH
-        permit2.approve(purchaseToken, address(universalRouter), uint160(amount), type(uint48).max);
-        balanace += _swapExactInputSingle(amount, purchaseToken, slippage, block.timestamp + 60);
+        IERC20(purchaseToken).transferFrom(msg.sender, address(this), amount);
+
+        permit2.approve(purchaseToken, address(universalRouter), type(uint160).max, type(uint48).max);
+        _swapExactInputSingle(amount, purchaseToken, slippage, block.timestamp + 60);
+        balance = IERC20(WETH).balanceOf(address(this));
 
         return balance;
         //hubBought = weiAmount * _rate;
@@ -61,7 +71,7 @@ contract TokenPresale {
     ) internal {
 
         bytes memory commands = abi.encodePacked(bytes1(uint8(Commands.V3_SWAP_EXACT_IN)));
-        bytes memory path = abi.encodePacked(_token, poolFee, Constants.ETH);
+        bytes memory path = abi.encodePacked(_token, poolFee, WETH);
         bytes[] memory inputs = new bytes[](1); 
         inputs[0] = abi.encode(Constants.MSG_SENDER, _amountIn, _amountOutMinimum, path, true); 
 
