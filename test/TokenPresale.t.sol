@@ -41,20 +41,27 @@ contract TokenPresaleTest is Test {
     event HubBought(address indexed buyer, uint256 indexed amount, uint256 indexed hubBought);
 
     function setUp() public {
-        usdc = IERC20(USDC);
-        weth = IERC20(WETH);
-        tokenPresale = new TokenPresale();
-        universalRouter = IUniversalRouter(UNIVERSAL_ROUTER_ADDRESS);
-        permit2 = Permit2(PERMIT2_ADDRESS);
-
         (alice, aliceKey) = makeAddrAndKey("alice");
         (chad, chadKey) = makeAddrAndKey("chad");
         bob = vm.addr(2);
         owner = vm.addr(3);
+        
+        usdc = IERC20(USDC);
+        weth = IERC20(WETH);
+
+        universalRouter = IUniversalRouter(UNIVERSAL_ROUTER_ADDRESS);
+        permit2 = Permit2(PERMIT2_ADDRESS);
+
+        vm.prank(owner);
+            tokenPresale = new TokenPresale();
 
         deal(address(usdc), alice, 100 ether);
         deal(address(usdc), bob, 10 ether);
         deal(address(usdc), chad, 10 ether);
+
+        vm.startPrank(owner);
+            tokenPresale.approveToken(address(usdc), uint24(3000));
+        vm.stopPrank();
 
         vm.startPrank(alice);
             usdc.approve(PERMIT2_ADDRESS, type(uint256).max);

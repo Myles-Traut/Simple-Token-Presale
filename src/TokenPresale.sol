@@ -8,8 +8,11 @@ import "lib/universal-router/permit2/src/Permit2.sol";
 import "lib/universal-router/permit2/src/interfaces/ISignatureTransfer.sol";
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract TokenPresale {
+///TODO Increase Test coverage
+
+contract TokenPresale is Ownable {
     // sell users HUB tokens based on a rate vs USDC. 1 HUB = 0.5 USDC
     // Users are able to purchase HUB in various currencies
     // User balances are kept in a mapping and HUB becomes claimable after launch
@@ -32,12 +35,17 @@ contract TokenPresale {
     address public constant PERMIT2_ADDRESS = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
-    uint24 public constant poolFee = 3000;
-
     IUniversalRouter public universalRouter;
     Permit2 public immutable permit2;
 
+    struct Token {
+        address tokenAddress;
+        uint24 poolFee;
+        bool approved;
+    }
+
     mapping(address => uint256) public userHubBalance;
+    mapping(address => Token) private approvedTokens;
 
     /*------EVENTS------*/
 
@@ -58,21 +66,19 @@ contract TokenPresale {
     /// @param _amount the the _amount of _purchaseToken that the user is willing to spend
     /// @param _slippage the minimum _amount of eth that _purchaseToken will be swapped for. Called off-chain using uniswap quoter
     function buyHubWithApproval(address _purchaseToken, uint256 _amount, uint256 _slippage) public returns(uint256) {
-        require(_purchaseToken != address(0), "Address 0");
-        IERC20 token = IERC20(_purchaseToken);
-        require(token.balanceOf(msg.sender) >= _amount, "Insufficient Balance");
         require(_amount > 0, "Cannot Buy 0");
 
-        // Permit2 approvals for _purchaseToken
-        token.approve(PERMIT2_ADDRESS, _amount);
-        permit2.approve(_purchaseToken, address(universalRouter), type(uint160).max, type(uint48).max);
-
-        token.transferFrom(msg.sender, address(this), _amount);
-
-        uint256 wethOut = _swapExactInputSingle(_amount, _purchaseToken, _slippage, block.timestamp + 60);
+        Token memory token = approvedTokens[_purchaseToken];
         
-        uint256 hubBought =  _getHub(wethOut);
+        require(token.approved == true, "Not Approved Token");
+        require(token.tokenAddress != address(0), "Address 0");
+        IERC20 token_ = IERC20(token.tokenAddress );
+        require(token_.balanceOf(msg.sender) >= _amount, "Insufficient Balance");
 
+        token_.transferFrom(msg.sender, address(this), _amount);
+
+        uint256 wethOut = _swapExactInputSingle(_amount, token.tokenAddress, token.poolFee, _slippage, block.timestamp + 60);
+        uint256 hubBought =  _getHub(wethOut);
         userHubBalance[msg.sender] += hubBought;
 
         emit HubBought(msg.sender, _amount, hubBought);
@@ -92,11 +98,17 @@ contract TokenPresale {
             uint256 _nonce,
             uint256 _deadline,
             bytes calldata _signature
-        ) public returns(uint256) {
-        require(_purchaseToken != address(0), "Address 0");
-        IERC20 token = IERC20(_purchaseToken);
-        require(token.balanceOf(_sender) >= _amount, "Insufficient Balance");
+        ) public returns(uint256) {    
+        
+        require(_sender != address(0), "Address 0");
         require(_amount > 0, "Cannot Buy 0");
+
+        Token memory token = approvedTokens[_purchaseToken];
+
+        require(token.approved == true, "Not Approved Token");
+        require(token.tokenAddress != address(0), "Address 0");
+        IERC20 token_ = IERC20(token.tokenAddress );
+        require(token_.balanceOf(_sender) >= _amount, "Insufficient Balance");
 
         // Transfer tokens from _sender to ourselves.
         permit2.permitTransferFrom(
@@ -122,19 +134,28 @@ contract TokenPresale {
             // the EIP712 hash of `permit`.
             _signature
         );
-        token.approve(PERMIT2_ADDRESS, _amount);
+
         // Approve PERMIT2 contract to transfer funds to the universal router
-        permit2.approve(_purchaseToken, address(universalRouter), uint160(_amount), uint48(_deadline));
+        // permit2.approve(_purchaseToken, address(universalRouter), uint160(_amount), uint48(_deadline));
 
-        uint256 wethOut = _swapExactInputSingle(_amount, _purchaseToken, _slippage, _deadline);
-        
+        uint256 wethOut = _swapExactInputSingle(_amount, token.tokenAddress, token.poolFee, _slippage, _deadline);
         uint256 hubBought =  _getHub(wethOut);
-
         userHubBalance[_sender] += hubBought;
-
+        
         emit HubBought(_sender, _amount, hubBought);
 
         return (hubBought);
+    }
+
+    function approveToken(address _tokenAddress, uint24 _poolFee) public onlyOwner {
+        approvedTokens[_tokenAddress] = Token({
+            tokenAddress: _tokenAddress,
+            poolFee: _poolFee,
+            approved: true
+        });
+
+        IERC20(_tokenAddress).approve(PERMIT2_ADDRESS, type(uint256).max);
+        permit2.approve(_tokenAddress, address(universalRouter), type(uint160).max, type(uint48).max);
     }
 
      /*------INTERNAL FUNCTIONS------*/
@@ -148,13 +169,14 @@ contract TokenPresale {
     function _swapExactInputSingle(
         uint256 _amountIn,
         address _token,
+        uint24 _poolFee,
         uint256 _amountOutMinimum,
         uint256 _deadline
     ) internal returns(uint256) {
         // Build uniswap commands
         bytes memory commands = abi.encodePacked(bytes1(uint8(Commands.V3_SWAP_EXACT_IN)));
         // Create path for the swap
-        bytes memory path = abi.encodePacked(_token, poolFee, WETH);
+        bytes memory path = abi.encodePacked(_token, _poolFee, WETH);
         // Create input parameters for execution with commands
         bytes[] memory inputs = new bytes[](1); 
         inputs[0] = abi.encode(Constants.MSG_SENDER, _amountIn, _amountOutMinimum, path, true); 
