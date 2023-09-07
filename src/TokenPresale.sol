@@ -55,7 +55,7 @@ contract TokenPresale {
     /// @param _purchaseToken the address of the ERC20 token used to buy HUB
     /// @param _amount the the _amount of _purchaseToken that the user is willing to spend
     /// @param _slippage the minimum _amount of eth that _purchaseToken will be swapped for. Called off-chain using uniswap quoter
-    function buyHub(address _purchaseToken, uint256 _amount, uint256 _slippage) public returns(uint256) {
+    function buyHubWithApproval(address _purchaseToken, uint256 _amount, uint256 _slippage) public returns(uint256) {
         require(_purchaseToken != address(0), "Address 0");
         IERC20 token = IERC20(_purchaseToken);
         require(token.balanceOf(msg.sender) >= _amount, "Insufficient Balance");

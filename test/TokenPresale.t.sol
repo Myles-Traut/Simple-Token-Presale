@@ -60,7 +60,7 @@ contract TokenPresaleTest is Test {
 
     }
 
-    function test_BuyHub() public {
+    function test_buyHubWithApproval() public {
         vm.startPrank(alice);
             assertEq(tokenPresale.userHubBalance(msg.sender), 0);
             // Get off-chain quote for 1USDC => WETH
@@ -68,7 +68,7 @@ contract TokenPresaleTest is Test {
             assertEq(tokenPresale.balance(), 0);
 
             uint256 hubQuote = tokenPresale.getHubQuote(quote);
-            uint256 hubBought = tokenPresale.buyHub(address(usdc), 1e6, quote);
+            uint256 hubBought = tokenPresale.buyHubWithApproval(address(usdc), 1e6, quote);
             assertGe(tokenPresale.balance(), quote);
             assertEq(hubBought, hubQuote);
             assertEq(tokenPresale.userHubBalance(alice), hubBought);
@@ -77,7 +77,7 @@ contract TokenPresaleTest is Test {
             uint256 aliceBalBefore = tokenPresale.userHubBalance(alice);
             uint256 presaleBalBefore = tokenPresale.balance();
             hubQuote = tokenPresale.getHubQuote(quote);
-            hubBought = tokenPresale.buyHub(address(usdc), 1e6, quote);
+            hubBought = tokenPresale.buyHubWithApproval(address(usdc), 1e6, quote);
             uint256 aliceBalAfter = tokenPresale.userHubBalance(alice);
             uint256 presaleBalAfter = tokenPresale.balance();
 
@@ -89,7 +89,7 @@ contract TokenPresaleTest is Test {
             quote = _quote(2e6);
             presaleBalBefore = tokenPresale.balance();
             hubQuote = tokenPresale.getHubQuote(quote);
-            hubBought = tokenPresale.buyHub(address(usdc), 2e6, quote);
+            hubBought = tokenPresale.buyHubWithApproval(address(usdc), 2e6, quote);
             presaleBalAfter = tokenPresale.balance();
             
             assertEq(hubQuote, hubBought);
@@ -103,7 +103,7 @@ contract TokenPresaleTest is Test {
             uint256 quote = _quote(1e6);
             vm.expectEmit(true, true, true, true);
             emit HubBought(alice, 1e6, tokenPresale.getHubQuote(quote));
-            tokenPresale.buyHub(address(usdc), 1e6, quote);
+            tokenPresale.buyHubWithApproval(address(usdc), 1e6, quote);
     }
 
     function _quote(uint256 _amount) internal returns (uint256 amountOutQuote) {
