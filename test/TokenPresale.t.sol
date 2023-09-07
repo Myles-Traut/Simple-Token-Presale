@@ -17,6 +17,7 @@ contract TokenPresaleTest is Test {
     TokenPresale public tokenPresale;
 
     address public alice;
+    address public bob;
     
     address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address public constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48; 
@@ -30,6 +31,8 @@ contract TokenPresaleTest is Test {
     IUniversalRouter public universalRouter;
     Permit2 public permit2;
 
+    event HubBought(address indexed buyer, uint256 indexed amount, uint256 indexed hubBought);
+
     function setUp() public {
         usdc = IERC20(USDC);
         weth = IERC20(WETH);
@@ -38,33 +41,69 @@ contract TokenPresaleTest is Test {
         permit2 = Permit2(PERMIT2_ADDRESS);
 
         alice = vm.addr(1);
-        deal(alice, 1 ether);
-        deal(address(usdc), alice, 10 ether);
+        bob = vm.addr(2);
+
+        deal(address(usdc), alice, 100 ether);
+        deal(address(usdc), bob, 10 ether);
 
         vm.startPrank(alice);
-            weth.approve(PERMIT2_ADDRESS, type(uint256).max);
             usdc.approve(PERMIT2_ADDRESS, type(uint256).max);
             permit2.approve(address(usdc), address(universalRouter), type(uint160).max, type(uint48).max);
-            permit2.approve(address(weth), address(universalRouter), type(uint160).max, type(uint48).max);
-
             usdc.approve(address(tokenPresale), 100 ether);
-            weth.approve(address(tokenPresale), 100 ether);
         vm.stopPrank();
 
-        vm.prank(address(tokenPresale));
+         vm.startPrank(bob);
             usdc.approve(PERMIT2_ADDRESS, type(uint256).max);
+            permit2.approve(address(usdc), address(universalRouter), type(uint160).max, type(uint48).max);
+            usdc.approve(address(tokenPresale), 100 ether);
+        vm.stopPrank();
+
     }
 
     function test_BuyHub() public {
-        // uint256 hubBought;
+        vm.startPrank(alice);
+            assertEq(tokenPresale.userHubBalance(msg.sender), 0);
+            // Get off-chain quote for 1USDC => WETH
+            uint256 quote = _quote(1e6);
+            assertEq(tokenPresale.balance(), 0);
 
+            uint256 hubQuote = tokenPresale.getHubQuote(quote);
+            uint256 hubBought = tokenPresale.buyHub(address(usdc), 1e6, quote);
+            assertGe(tokenPresale.balance(), quote);
+            assertEq(hubBought, hubQuote);
+            assertEq(tokenPresale.userHubBalance(alice), hubBought);
+
+            quote = _quote(1e6);
+            uint256 aliceBalBefore = tokenPresale.userHubBalance(alice);
+            uint256 presaleBalBefore = tokenPresale.balance();
+            hubQuote = tokenPresale.getHubQuote(quote);
+            hubBought = tokenPresale.buyHub(address(usdc), 1e6, quote);
+            uint256 aliceBalAfter = tokenPresale.userHubBalance(alice);
+            uint256 presaleBalAfter = tokenPresale.balance();
+
+            assertGe(presaleBalAfter, presaleBalBefore + quote);
+            assertEq(aliceBalAfter, aliceBalBefore + hubQuote);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+            quote = _quote(2e6);
+            presaleBalBefore = tokenPresale.balance();
+            hubQuote = tokenPresale.getHubQuote(quote);
+            hubBought = tokenPresale.buyHub(address(usdc), 2e6, quote);
+            presaleBalAfter = tokenPresale.balance();
+            
+            assertEq(hubQuote, hubBought);
+            assertGe(presaleBalAfter, presaleBalBefore + quote);
+            assertEq(tokenPresale.userHubBalance(bob), hubBought);
+        vm.stopPrank();
+    }
+
+    function test_EventHubBought() public {
         vm.startPrank(alice);
             uint256 quote = _quote(1e6);
-            console.log("Quote", quote);
-            (uint256 weth, uint256 hubBought) = tokenPresale.buyHub(address(usdc), 1e6, quote);
-            console.log("WETH", weth);
-            console.log("hubBought", hubBought);
-
+            vm.expectEmit(true, true, true, true);
+            emit HubBought(alice, 1e6, tokenPresale.getHubQuote(quote));
+            tokenPresale.buyHub(address(usdc), 1e6, quote);
     }
 
     function _quote(uint256 _amount) internal returns (uint256 amountOutQuote) {
