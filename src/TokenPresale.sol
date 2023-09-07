@@ -5,6 +5,7 @@ import "lib/universal-router/contracts/interfaces/IUniversalRouter.sol";
 import "lib/universal-router/contracts/libraries/Constants.sol";
 import "lib/universal-router/contracts/libraries/Commands.sol";
 import "lib/universal-router/permit2/src/Permit2.sol";
+import "lib/universal-router/permit2/src/interfaces/ISignatureTransfer.sol";
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -52,6 +53,7 @@ contract TokenPresale {
 
     /*------STATE CHANGING FUNCTIONS------*/
 
+    /// @notice Allows a user to purchase HUB using approve on _purchaseToken.
     /// @param _purchaseToken the address of the ERC20 token used to buy HUB
     /// @param _amount the the _amount of _purchaseToken that the user is willing to spend
     /// @param _slippage the minimum _amount of eth that _purchaseToken will be swapped for. Called off-chain using uniswap quoter
@@ -74,6 +76,63 @@ contract TokenPresale {
         userHubBalance[msg.sender] += hubBought;
 
         emit HubBought(msg.sender, _amount, hubBought);
+
+        return (hubBought);
+    }
+
+    /// @notice Allows a user to purchase HUB using permit2. This lets a 3rd party pay for gas.
+    /// @param _purchaseToken the address of the ERC20 token used to buy HUB
+    /// @param _amount the the _amount of _purchaseToken that the user is willing to spend
+    /// @param _slippage the minimum _amount of eth that _purchaseToken will be swapped for. Called off-chain using uniswap quoter
+    function buyHubWithPermit(
+            address _purchaseToken,
+            address _sender,
+            uint256 _amount,
+            uint256 _slippage,
+            uint256 _nonce,
+            uint256 _deadline,
+            bytes calldata _signature
+        ) public returns(uint256) {
+        require(_purchaseToken != address(0), "Address 0");
+        IERC20 token = IERC20(_purchaseToken);
+        require(token.balanceOf(_sender) >= _amount, "Insufficient Balance");
+        require(_amount > 0, "Cannot Buy 0");
+
+        // Transfer tokens from _sender to ourselves.
+        permit2.permitTransferFrom(
+            // The permit message.
+            ISignatureTransfer.PermitTransferFrom({
+                permitted: ISignatureTransfer.TokenPermissions({
+                    token: _purchaseToken,
+                    amount: _amount
+                }),
+                nonce: _nonce,
+                deadline: _deadline
+            }),
+            // The transfer recipient and amount.
+            ISignatureTransfer.SignatureTransferDetails({
+                to: address(this),
+                requestedAmount: _amount
+            }),
+            // The owner of the tokens, which must also be
+            // the signer of the message, otherwise this call
+            // will fail.
+            _sender,
+            // The packed signature that was the result of signing
+            // the EIP712 hash of `permit`.
+            _signature
+        );
+        token.approve(PERMIT2_ADDRESS, _amount);
+        // Approve PERMIT2 contract to transfer funds to the universal router
+        permit2.approve(_purchaseToken, address(universalRouter), uint160(_amount), uint48(_deadline));
+
+        uint256 wethOut = _swapExactInputSingle(_amount, _purchaseToken, _slippage, _deadline);
+        
+        uint256 hubBought =  _getHub(wethOut);
+
+        userHubBalance[_sender] += hubBought;
+
+        emit HubBought(_sender, _amount, hubBought);
 
         return (hubBought);
     }

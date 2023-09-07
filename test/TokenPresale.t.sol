@@ -12,12 +12,19 @@ import "lib/universal-router/contracts/interfaces/IUniversalRouter.sol";
 import "lib/universal-router/contracts/libraries/Constants.sol";
 import "lib/universal-router/contracts/libraries/Commands.sol";
 import "lib/universal-router/permit2/src/Permit2.sol";
+import "lib/universal-router/permit2/src/interfaces/ISignatureTransfer.sol";
+import {PermitHash} from "lib/universal-router/permit2/src/libraries/PermitHash.sol";
 
 contract TokenPresaleTest is Test {
     TokenPresale public tokenPresale;
 
+    uint256 public aliceKey;
+    uint256 public chadKey;
+
     address public alice;
     address public bob;
+    address public chad;
+    address public owner;
     
     address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address public constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48; 
@@ -40,11 +47,14 @@ contract TokenPresaleTest is Test {
         universalRouter = IUniversalRouter(UNIVERSAL_ROUTER_ADDRESS);
         permit2 = Permit2(PERMIT2_ADDRESS);
 
-        alice = vm.addr(1);
+        (alice, aliceKey) = makeAddrAndKey("alice");
+        (chad, chadKey) = makeAddrAndKey("chad");
         bob = vm.addr(2);
+        owner = vm.addr(3);
 
         deal(address(usdc), alice, 100 ether);
         deal(address(usdc), bob, 10 ether);
+        deal(address(usdc), chad, 10 ether);
 
         vm.startPrank(alice);
             usdc.approve(PERMIT2_ADDRESS, type(uint256).max);
@@ -58,6 +68,8 @@ contract TokenPresaleTest is Test {
             usdc.approve(address(tokenPresale), 100 ether);
         vm.stopPrank();
 
+        vm.prank(chad);
+            usdc.approve(PERMIT2_ADDRESS, type(uint256).max);
     }
 
     function test_buyHubWithApproval() public {
@@ -98,6 +110,38 @@ contract TokenPresaleTest is Test {
         vm.stopPrank();
     }
 
+    function test_BuyHubWithPermit() public {
+        uint256 quote = _quote(1e6);
+        // uint256 hubQuote = tokenPresale.getHubQuote(quote);
+
+        Permit2.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
+            permitted: ISignatureTransfer.TokenPermissions({
+                token: address(usdc),
+                amount: 1e6
+            }),
+            nonce: 0,
+            deadline: block.timestamp + 60
+        });
+
+        bytes memory signature = _signPermit(permit, address(tokenPresale), chadKey);
+
+        assertEq(tokenPresale.userHubBalance(chad), 0);
+        assertEq(IERC20(WETH).balanceOf(address(tokenPresale)), 0);
+
+        vm.prank(owner);
+            uint256 hubBought = tokenPresale.buyHubWithPermit(
+                address(usdc),
+                chad,
+                1e6,
+                quote,
+                permit.nonce,
+                permit.deadline,
+                signature
+            );
+        assertEq(tokenPresale.userHubBalance(chad), hubBought);
+        assertGe(IERC20(WETH).balanceOf(address(tokenPresale)), quote);
+    }
+
     function test_EventHubBought() public {
         vm.startPrank(alice);
             uint256 quote = _quote(1e6);
@@ -108,5 +152,40 @@ contract TokenPresaleTest is Test {
 
     function _quote(uint256 _amount) internal returns (uint256 amountOutQuote) {
         amountOutQuote = quoter.quoteExactInputSingle(address(usdc), address(weth), 3000, _amount, 0);
+    }
+
+    // Generate a signature for a permit message.
+    function _signPermit(
+        Permit2.PermitTransferFrom memory permit,
+        address spender,
+        uint256 signerKey
+    ) internal view returns (bytes memory signature) {
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, _getEIP712Hash(permit, spender));
+        signature = abi.encodePacked(r, s, v);
+    }
+
+    // Compute the EIP712 hash of the permit object.
+    // Normally this would be implemented off-chain.
+    function _getEIP712Hash(Permit2.PermitTransferFrom memory permit, address spender)
+        internal
+        view
+        returns (bytes32 h) {
+
+        return keccak256(abi.encodePacked(
+            "\x19\x01",
+            permit2.DOMAIN_SEPARATOR(),
+            keccak256(abi.encode(
+                PermitHash._PERMIT_TRANSFER_FROM_TYPEHASH,
+                keccak256(abi.encode(
+                    PermitHash._TOKEN_PERMISSIONS_TYPEHASH,
+                    permit.permitted.token,
+                    permit.permitted.amount
+                )),
+                spender,
+                permit.nonce,
+                permit.deadline
+            ))
+        ));
     }
 }
