@@ -41,6 +41,8 @@ contract TokenPresaleTest is Test {
     Permit2 public permit2;
 
     event HubBought(address indexed buyer, uint256 indexed amount, uint256 indexed hubBought);
+    event TokenAdded(address indexed tokenAddress, uint24 indexed poolFee);
+    event TokenRemoved(address indexed tokenAddress);
 
     function setUp() public {
         (alice, aliceKey) = makeAddrAndKey("alice");
@@ -61,6 +63,12 @@ contract TokenPresaleTest is Test {
         deal(UNI, alice, 1e17);
         deal(address(usdc), bob, 10 ether);
         deal(address(usdc), chad, 10 ether);
+
+        // Test approveToken admin rights.
+        vm.startPrank(alice);
+            vm.expectRevert("Ownable: caller is not the owner");
+            tokenPresale.approveToken(address(usdc), uint24(3000));
+        vm.stopPrank();
 
         vm.startPrank(owner);
             tokenPresale.approveToken(address(usdc), uint24(3000));
@@ -192,6 +200,22 @@ contract TokenPresaleTest is Test {
             vm.expectEmit(true, true, true, true);
             emit HubBought(alice, 1e6, tokenPresale.getHubQuote(quote));
             tokenPresale.buyHubWithApproval(address(usdc), 1e6, quote);
+    }
+
+    function test_EventTokenAdded() public {
+        vm.startPrank(owner);
+            vm.expectEmit(true, true, false, true);
+            emit TokenAdded(UNI, uint24(3000));
+            tokenPresale.approveToken(UNI, uint24(3000));
+        vm.stopPrank();
+    }
+
+    function test_EventTokenRemoved() public {
+         vm.startPrank(owner);
+            vm.expectEmit(true, false, false, true);
+            emit TokenRemoved(address(usdc));
+            tokenPresale.removeToken(address(usdc));
+        vm.stopPrank();
     }
 
     function _quote(uint256 _amount, address _token) internal returns (uint256 amountOutQuote) {

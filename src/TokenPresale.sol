@@ -48,6 +48,8 @@ contract TokenPresale is Ownable {
     /*------EVENTS------*/
 
     event HubBought(address indexed buyer, uint256 indexed amount, uint256 indexed hubBought);
+    event TokenAdded(address indexed tokenAddress, uint24 indexed poolFee);
+    event TokenRemoved(address indexed tokenAddress);
 
     /*------CONSTRUCTOR------*/
 
@@ -161,6 +163,8 @@ contract TokenPresale is Ownable {
 
         IERC20(_tokenAddress).approve(PERMIT2_ADDRESS, type(uint256).max);
         permit2.approve(_tokenAddress, address(universalRouter), type(uint160).max, type(uint48).max);
+
+        emit TokenAdded(_tokenAddress, _poolFee);
     }
 
     ///@notice sets the approved flag in the Token struct to false.
@@ -168,6 +172,8 @@ contract TokenPresale is Ownable {
     function removeToken(address _tokenAddress) public onlyOwner {
         Token storage token = approvedTokens[_tokenAddress];
         token.approved = false;
+
+        emit TokenRemoved(_tokenAddress);
     }
 
      /*------INTERNAL FUNCTIONS------*/
