@@ -68,14 +68,12 @@ contract TokenPresaleTest is Test {
 
         vm.startPrank(alice);
             usdc.approve(PERMIT2_ADDRESS, type(uint256).max);
-            permit2.approve(address(usdc), address(universalRouter), type(uint160).max, type(uint48).max);
-            usdc.approve(address(tokenPresale), 100 ether);
+            usdc.approve(address(tokenPresale), type(uint256).max);
         vm.stopPrank();
 
          vm.startPrank(bob);
             usdc.approve(PERMIT2_ADDRESS, type(uint256).max);
-            permit2.approve(address(usdc), address(universalRouter), type(uint160).max, type(uint48).max);
-            usdc.approve(address(tokenPresale), 100 ether);
+            usdc.approve(address(tokenPresale), type(uint256).max);
         vm.stopPrank();
 
         vm.prank(chad);

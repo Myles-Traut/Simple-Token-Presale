@@ -135,7 +135,7 @@ contract TokenPresale is Ownable {
         );
 
         // Approve PERMIT2 contract to transfer funds to the universal router
-        // permit2.approve(_purchaseToken, address(universalRouter), uint160(_amount), uint48(_deadline));
+        permit2.approve(_purchaseToken, address(universalRouter), uint160(_amount), uint48(_deadline));
 
         uint256 wethOut = _swapExactInputSingle(_amount, token.tokenAddress, token.poolFee, _slippage, _deadline);
         uint256 hubBought =  _getHub(wethOut);
