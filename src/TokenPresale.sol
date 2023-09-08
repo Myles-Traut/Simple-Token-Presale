@@ -82,9 +82,7 @@ contract TokenPresale is Ownable {
 
         IERC20(token.tokenAddress).transferFrom(msg.sender, address(this), _amount);
 
-        uint256 wethOut = _swapExactInputSingle(_amount, token.tokenAddress, token.poolFee, _slippage, block.timestamp + 60);
-        uint256 hubBought =  _getHub(wethOut);
-        userHubBalance[msg.sender] += hubBought;
+        uint256 hubBought = _buyHub(msg.sender, _amount, token.tokenAddress, token.poolFee, _slippage, block.timestamp + 60);
 
         emit HubBought(msg.sender, _amount, hubBought);
 
@@ -141,14 +139,25 @@ contract TokenPresale is Ownable {
             _signature
         );
 
-        uint256 wethOut = _swapExactInputSingle(_amount, token.tokenAddress, token.poolFee, _slippage, _deadline);
-        uint256 hubBought =  _getHub(wethOut);
-        userHubBalance[_sender] += hubBought;
+        uint256 hubBought = _buyHub(_sender, _amount, token.tokenAddress, token.poolFee, _slippage, _deadline);
         
         emit HubBought(_sender, _amount, hubBought);
 
         return (hubBought);
     }
+
+    function _buyHub(
+        address _sender,
+        uint256 _amount,
+        address _purchaseToken,
+        uint24 _poolFee,
+        uint256 _slippage,
+        uint256 _deadline
+        ) internal returns(uint256 hubBought) {
+            uint256 wethOut = _swapExactInputSingle(_amount, _purchaseToken, _poolFee, _slippage, _deadline);
+            hubBought =  _getHub(wethOut);
+            userHubBalance[_sender] += hubBought;
+        }
 
     ///@notice allows the owner to add ERC20 tokens to use for purchasing HUB. Approves the Permit2 contract to transfer the token. 
     ///@param _tokenAddress the address of the token being added.
