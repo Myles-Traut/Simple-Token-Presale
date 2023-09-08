@@ -76,6 +76,7 @@ contract TokenPresaleTest is Test {
             usdc.approve(address(tokenPresale), type(uint256).max);
         vm.stopPrank();
 
+        ///@notice Chad only has to approve the permit2 contract because he's using a signed permit.
         vm.prank(chad);
             usdc.approve(PERMIT2_ADDRESS, type(uint256).max);
     }
