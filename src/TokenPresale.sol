@@ -28,9 +28,6 @@ contract TokenPresale is Ownable {
     /// @notice The below rate works out to about 1.2HUB / 1USDC
     uint256 private _rate; // rate is 2e3 => 1 wei = 0.0000000000000002 HUB 
 
-    // Amount of wei raised
-    uint256 private _weiRaised;
-
     address public constant UNIVERSAL_ROUTER_ADDRESS = 0xEf1c6E67703c7BD7107eed8303Fbe6EC2554BF6B;
     address public constant PERMIT2_ADDRESS = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
@@ -65,17 +62,17 @@ contract TokenPresale is Ownable {
     /// @param _purchaseToken the address of the ERC20 token used to buy HUB
     /// @param _amount the the _amount of _purchaseToken that the user is willing to spend
     /// @param _slippage the minimum _amount of eth that _purchaseToken will be swapped for. Called off-chain using uniswap quoter
-    function buyHubWithApproval(address _purchaseToken, uint256 _amount, uint256 _slippage) public returns(uint256) {
-        require(_amount > 0, "Cannot Buy 0");
+    function buyHubWithApproval(
+        address _purchaseToken,
+        uint256 _amount,
+        uint256 _slippage
+        ) public returns(uint256) {
 
         Token memory token = approvedTokens[_purchaseToken];
-        
-        require(token.approved == true, "Not Approved Token");
-        require(token.tokenAddress != address(0), "Address 0");
-        IERC20 token_ = IERC20(token.tokenAddress );
-        require(token_.balanceOf(msg.sender) >= _amount, "Insufficient Balance");
 
-        token_.transferFrom(msg.sender, address(this), _amount);
+        _validatePurchase(_amount, msg.sender, token);
+
+        IERC20(token.tokenAddress).transferFrom(msg.sender, address(this), _amount);
 
         uint256 wethOut = _swapExactInputSingle(_amount, token.tokenAddress, token.poolFee, _slippage, block.timestamp + 60);
         uint256 hubBought =  _getHub(wethOut);
@@ -98,17 +95,13 @@ contract TokenPresale is Ownable {
             uint256 _nonce,
             uint256 _deadline,
             bytes calldata _signature
-        ) public returns(uint256) {    
+        ) public returns(uint256) {  
         
-        require(_sender != address(0), "Address 0");
-        require(_amount > 0, "Cannot Buy 0");
-
+        require(_sender != address(0), "Address 0");  
+        
         Token memory token = approvedTokens[_purchaseToken];
 
-        require(token.approved == true, "Not Approved Token");
-        require(token.tokenAddress != address(0), "Address 0");
-        IERC20 token_ = IERC20(token.tokenAddress );
-        require(token_.balanceOf(_sender) >= _amount, "Insufficient Balance");
+        _validatePurchase(_amount, _sender, token);
 
         // Transfer tokens from _sender to ourselves.
         permit2.permitTransferFrom(
@@ -205,6 +198,14 @@ contract TokenPresale is Ownable {
 
     function rate() public view returns(uint256 rate_){
         rate_ = _rate;
+    }
+
+    function _validatePurchase(uint256 _amount, address _sender, Token memory _token) internal view {
+        IERC20 token_ = IERC20(_token.tokenAddress);
+        require(token_.balanceOf(_sender) >= _amount, "Insufficient Balance");
+        require(_amount > 0, "Cannot Buy 0");
+        require(_token.approved == true, "Not Approved Token");
+        require(_token.tokenAddress != address(0), "Address 0");
     }
 
 }
