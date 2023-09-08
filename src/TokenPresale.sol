@@ -146,19 +146,6 @@ contract TokenPresale is Ownable {
         return (hubBought);
     }
 
-    function _buyHub(
-        address _sender,
-        uint256 _amount,
-        address _purchaseToken,
-        uint24 _poolFee,
-        uint256 _slippage,
-        uint256 _deadline
-        ) internal returns(uint256 hubBought) {
-            uint256 wethOut = _swapExactInputSingle(_amount, _purchaseToken, _poolFee, _slippage, _deadline);
-            hubBought =  _getHub(wethOut);
-            userHubBalance[_sender] += hubBought;
-        }
-
     ///@notice allows the owner to add ERC20 tokens to use for purchasing HUB. Approves the Permit2 contract to transfer the token. 
     ///@param _tokenAddress the address of the token being added.
     ///@param _poolFee the pool fee for the corresponding token/WETH pool on UniswapV3.
@@ -210,11 +197,11 @@ contract TokenPresale is Ownable {
         bytes[] memory inputs = new bytes[](1); 
         inputs[0] = abi.encode(Constants.MSG_SENDER, _amountIn, _amountOutMinimum, path, true); 
 
-        uint256 wethBalanceBefore = IERC20(WETH).balanceOf(address(this));
+        uint256 wethBalanceBefore = _getBalance();
         // Execute the swap
         universalRouter.execute(commands, inputs, _deadline);
 
-        uint256 wethBalanceAfter = IERC20(WETH).balanceOf(address(this));
+        uint256 wethBalanceAfter = _getBalance();
         // Calculate amount of Weth swapped
         uint256 wethOut = wethBalanceAfter - wethBalanceBefore;
         //Update contract weth balance
@@ -223,8 +210,26 @@ contract TokenPresale is Ownable {
         return wethOut;
     }
 
+    function _buyHub(
+        address _sender,
+        uint256 _amount,
+        address _purchaseToken,
+        uint24 _poolFee,
+        uint256 _slippage,
+        uint256 _deadline
+        ) internal returns(uint256 hubBought) {
+            uint256 wethOut = _swapExactInputSingle(_amount, _purchaseToken, _poolFee, _slippage, _deadline);
+            balance += wethOut;
+            hubBought =  _getHub(wethOut);
+            userHubBalance[_sender] += hubBought;
+    }
+
     function _getHub(uint256 _weiAmount) internal view returns(uint256) {
         return _weiAmount * _rate;
+    }
+
+    function _getBalance() internal view returns(uint256 balance) {
+        balance = IERC20(WETH).balanceOf(address(this));
     }
 
     /*------VIEW FUNCTIONS------*/
