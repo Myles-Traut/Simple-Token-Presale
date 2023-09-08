@@ -13,10 +13,11 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 ///TODO Increase Test coverage
 
 contract TokenPresale is Ownable {
-    // sell users HUB tokens based on a rate vs USDC. 1 HUB = 0.5 USDC
+    // sell users HUB tokens based on a rate vs WEI.
     // Users are able to purchase HUB in various currencies
+    // Currencies must be approved by the contract owner.
     // User balances are kept in a mapping and HUB becomes claimable after launch
-    // Deposited currencies are swapped for ETH via the uniswap UR and stored in a balance var.
+    // Deposited currencies are swapped for WETH via the uniswap UR and stored in a balance var.
     // Profits are only withdrawable by the contact owner
 
     uint256 public balance;
@@ -61,7 +62,7 @@ contract TokenPresale is Ownable {
     /// @notice Allows a user to purchase HUB using approve on _purchaseToken.
     /// @param _purchaseToken the address of the ERC20 token used to buy HUB
     /// @param _amount the the _amount of _purchaseToken that the user is willing to spend
-    /// @param _slippage the minimum _amount of eth that _purchaseToken will be swapped for. Called off-chain using uniswap quoter
+    /// @param _slippage the minimum _amount of weth that _purchaseToken will be swapped for. Called off-chain using uniswap quoter
     function buyHubWithApproval(
         address _purchaseToken,
         uint256 _amount,
@@ -85,8 +86,13 @@ contract TokenPresale is Ownable {
 
     /// @notice Allows a user to purchase HUB using permit2. This lets a 3rd party pay for gas.
     /// @param _purchaseToken the address of the ERC20 token used to buy HUB
-    /// @param _amount the the _amount of _purchaseToken that the user is willing to spend
-    /// @param _slippage the minimum _amount of eth that _purchaseToken will be swapped for. Called off-chain using uniswap quoter
+    /// @param _sender the sender of the permit on whose behalf the tx will be executed.
+    /// @param _amount the _amount of _purchaseToken that the user is willing to spend
+    /// @param _slippage the minimum _amount of weth that _purchaseToken will be swapped for. Called off-chain using uniswap quoter
+    /// @param _nonce the permit nonce.
+    /// @param _deadline the permit deadline after which it will be invalid.
+    /// @param _signature the signature of the _sender over the permit.
+    /// @return returns the amount oh HUB bought by the user. 
     function buyHubWithPermit(
             address _purchaseToken,
             address _sender,
@@ -140,7 +146,13 @@ contract TokenPresale is Ownable {
         return (hubBought);
     }
 
+    ///@notice allows the owner to add ERC20 tokens to use for purchasing HUB. Approves the Permit2 contract to transfer the token. 
+    ///@param _tokenAddress the address of the token being added.
+    ///@param _poolFee the pool fee for the corresponding token/WETH pool on UniswapV3.
     function approveToken(address _tokenAddress, uint24 _poolFee) public onlyOwner {
+        require(_tokenAddress != address(0), "Address 0");
+        require(_poolFee == 1000 || _poolFee == 3000 || _poolFee == 5000, "Invalid Pool Fee");
+        
         approvedTokens[_tokenAddress] = Token({
             tokenAddress: _tokenAddress,
             poolFee: _poolFee,
@@ -192,6 +204,10 @@ contract TokenPresale is Ownable {
     }
 
     /*------VIEW FUNCTIONS------*/
+
+    ///@notice gets the amount of HUB a user will receive for a given amount of wei.
+    ///@param _weiAmount the amount of wei to get a quote for.
+    ///@return hubQuote the amount of HUB received for _weiAmount
     function getHubQuote(uint256 _weiAmount) public view returns(uint256 hubQuote){
         hubQuote = _getHub(_weiAmount);
     }
@@ -201,11 +217,11 @@ contract TokenPresale is Ownable {
     }
 
     function _validatePurchase(uint256 _amount, address _sender, Token memory _token) internal view {
-        IERC20 token_ = IERC20(_token.tokenAddress);
-        require(token_.balanceOf(_sender) >= _amount, "Insufficient Balance");
         require(_amount > 0, "Cannot Buy 0");
         require(_token.approved == true, "Not Approved Token");
-        require(_token.tokenAddress != address(0), "Address 0");
+        IERC20 token_ = IERC20(_token.tokenAddress);
+        require(token_.balanceOf(_sender) >= _amount, "Insufficient Balance");
+        
     }
 
 }

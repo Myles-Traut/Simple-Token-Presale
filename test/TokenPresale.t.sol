@@ -28,6 +28,8 @@ contract TokenPresaleTest is Test {
     
     address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address public constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48; 
+    address public constant UNI = 0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984;
+
     address public constant PERMIT2_ADDRESS = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address public constant UNIVERSAL_ROUTER_ADDRESS = 0xEf1c6E67703c7BD7107eed8303Fbe6EC2554BF6B;
     IQuoter public constant quoter = IQuoter(0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6);
@@ -45,7 +47,7 @@ contract TokenPresaleTest is Test {
         (chad, chadKey) = makeAddrAndKey("chad");
         bob = vm.addr(2);
         owner = vm.addr(3);
-        
+
         usdc = IERC20(USDC);
         weth = IERC20(WETH);
 
@@ -56,6 +58,7 @@ contract TokenPresaleTest is Test {
             tokenPresale = new TokenPresale();
 
         deal(address(usdc), alice, 100 ether);
+        deal(UNI, alice, 1e17);
         deal(address(usdc), bob, 10 ether);
         deal(address(usdc), chad, 10 ether);
 
@@ -79,11 +82,11 @@ contract TokenPresaleTest is Test {
             usdc.approve(PERMIT2_ADDRESS, type(uint256).max);
     }
 
-    function test_buyHubWithApproval() public {
+    function test_BuyHubWithApproval() public {
         vm.startPrank(alice);
             assertEq(tokenPresale.userHubBalance(msg.sender), 0);
             // Get off-chain quote for 1USDC => WETH
-            uint256 quote = _quote(1e6);
+            uint256 quote = _quote(1e6, address(usdc));
             assertEq(tokenPresale.balance(), 0);
 
             uint256 hubQuote = tokenPresale.getHubQuote(quote);
@@ -92,7 +95,7 @@ contract TokenPresaleTest is Test {
             assertEq(hubBought, hubQuote);
             assertEq(tokenPresale.userHubBalance(alice), hubBought);
 
-            quote = _quote(1e6);
+            quote = _quote(1e6, address(usdc));
             uint256 aliceBalBefore = tokenPresale.userHubBalance(alice);
             uint256 presaleBalBefore = tokenPresale.balance();
             hubQuote = tokenPresale.getHubQuote(quote);
@@ -105,7 +108,7 @@ contract TokenPresaleTest is Test {
         vm.stopPrank();
 
         vm.startPrank(bob);
-            quote = _quote(2e6);
+            quote = _quote(2e6, address(usdc));
             presaleBalBefore = tokenPresale.balance();
             hubQuote = tokenPresale.getHubQuote(quote);
             hubBought = tokenPresale.buyHubWithApproval(address(usdc), 2e6, quote);
@@ -118,7 +121,7 @@ contract TokenPresaleTest is Test {
     }
 
     function test_BuyHubWithPermit() public {
-        uint256 quote = _quote(1e6);
+        uint256 quote = _quote(1e6, address(usdc));
         // uint256 hubQuote = tokenPresale.getHubQuote(quote);
 
         Permit2.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
@@ -149,16 +152,25 @@ contract TokenPresaleTest is Test {
         assertGe(IERC20(WETH).balanceOf(address(tokenPresale)), quote);
     }
 
+    function test_Reverts() public {
+        vm.startPrank(alice);
+            // IERC20(UNI).approve(PERMIT2_ADDRESS, type(uint256).max);
+            // permit2.approve(UNI, address(universalRouter), type(uint160).max, type(uint48).max);
+            uint256 quote = _quote(1e18, address(usdc));
+            vm.expectRevert("Cannot Buy 0");
+            tokenPresale.buyHubWithApproval(address(usdc), 0, quote);
+    }
+
     function test_EventHubBought() public {
         vm.startPrank(alice);
-            uint256 quote = _quote(1e6);
+            uint256 quote = _quote(1e6, address(usdc));
             vm.expectEmit(true, true, true, true);
             emit HubBought(alice, 1e6, tokenPresale.getHubQuote(quote));
             tokenPresale.buyHubWithApproval(address(usdc), 1e6, quote);
     }
 
-    function _quote(uint256 _amount) internal returns (uint256 amountOutQuote) {
-        amountOutQuote = quoter.quoteExactInputSingle(address(usdc), address(weth), 3000, _amount, 0);
+    function _quote(uint256 _amount, address _token) internal returns (uint256 amountOutQuote) {
+        amountOutQuote = quoter.quoteExactInputSingle(_token, address(weth), 3000, _amount, 0);
     }
 
     // Generate a signature for a permit message.
