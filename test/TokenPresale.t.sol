@@ -170,6 +170,22 @@ contract TokenPresaleTest is Test {
         vm.stopPrank();        
     }
 
+    function test_RemoveToken() public {
+        vm.startPrank(alice);
+            vm.expectRevert("Ownable: caller is not the owner");
+            tokenPresale.removeToken(address(usdc));
+        vm.stopPrank();
+
+        vm.prank(owner);
+            tokenPresale.removeToken(address(usdc));
+        
+        vm.startPrank(alice);
+            uint256 quote = _quote(1e6, address(usdc));
+            vm.expectRevert("Not Approved Token");
+            tokenPresale.buyHubWithApproval(address(usdc), 1e6, quote);
+        vm.stopPrank();
+    }
+
     function test_EventHubBought() public {
         vm.startPrank(alice);
             uint256 quote = _quote(1e6, address(usdc));
