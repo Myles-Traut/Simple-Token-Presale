@@ -163,6 +163,13 @@ contract TokenPresale is Ownable {
         permit2.approve(_tokenAddress, address(universalRouter), type(uint160).max, type(uint48).max);
     }
 
+    ///@notice sets the approved flag in the Token struct to false.
+    ///@param _tokenAddress the address of the ERC20 token to remove.
+    function removeToken(address _tokenAddress) public onlyOwner {
+        Token storage token = approvedTokens[_tokenAddress];
+        token.approved = false;
+    }
+
      /*------INTERNAL FUNCTIONS------*/
 
     /// @notice swapExactInputSingle swaps a fixed amount of _token for a maximum possible amount of WETH

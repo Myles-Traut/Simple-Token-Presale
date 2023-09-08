@@ -122,7 +122,6 @@ contract TokenPresaleTest is Test {
 
     function test_BuyHubWithPermit() public {
         uint256 quote = _quote(1e6, address(usdc));
-        // uint256 hubQuote = tokenPresale.getHubQuote(quote);
 
         Permit2.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
             permitted: ISignatureTransfer.TokenPermissions({
@@ -154,11 +153,22 @@ contract TokenPresaleTest is Test {
 
     function test_Reverts() public {
         vm.startPrank(alice);
-            // IERC20(UNI).approve(PERMIT2_ADDRESS, type(uint256).max);
-            // permit2.approve(UNI, address(universalRouter), type(uint160).max, type(uint48).max);
-            uint256 quote = _quote(1e18, address(usdc));
+
+            uint256 quote = _quote(1e6, address(usdc));
+
             vm.expectRevert("Cannot Buy 0");
             tokenPresale.buyHubWithApproval(address(usdc), 0, quote);
+            
+            uint256 uniQuote = _quote(1e18, UNI);
+            
+            vm.expectRevert("Not Approved Token");
+            tokenPresale.buyHubWithApproval(UNI, 1e18, uniQuote);
+
+            quote = _quote(500e6, address(usdc));
+
+            vm.expectRevert("Insufficient Balance");
+            tokenPresale.buyHubWithApproval(address(usdc), 500 ether, quote);
+        vm.stopPrank();        
     }
 
     function test_EventHubBought() public {
