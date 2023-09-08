@@ -10,16 +10,21 @@ import "lib/universal-router/permit2/src/interfaces/ISignatureTransfer.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-///TODO Increase Test coverage
+///TODO Add claimHub function
+///TODO Add withdrawWeth function
 
 contract TokenPresale is Ownable {
-    // sell users HUB tokens based on a rate vs WEI.
-    // Users are able to purchase HUB in various currencies
-    // Currencies must be approved by the contract owner.
-    // User balances are kept in a mapping and HUB becomes claimable after launch
-    // Deposited currencies are swapped for WETH via the uniswap UR and stored in a balance var.
-    // Profits are only withdrawable by the contact owner
+    ///@notice This contract is able to:
+    /*  Sell users HUB tokens based on a rate vs WEI.
+        Users are able to purchase HUB in ERC20 tokens
+        ERC20 tokens can be approved and removed by the contract owner.
+        User HUB balances are kept in a mapping and become claimable after launch
+        Deposited ERC20s are swapped for WETH upon deposit via the uniswap UR and stored in a balance var.
+        Profits are only withdrawable by the contact owner */
 
+    /*------STORAGE------*/
+
+    ///@dev stores the contracts WETH balance
     uint256 public balance;
 
     // How many token units a buyer gets per wei.
@@ -135,9 +140,6 @@ contract TokenPresale is Ownable {
             // the EIP712 hash of `permit`.
             _signature
         );
-
-        // Approve PERMIT2 contract to transfer funds to the universal router
-        permit2.approve(_purchaseToken, address(universalRouter), uint160(_amount), uint48(_deadline));
 
         uint256 wethOut = _swapExactInputSingle(_amount, token.tokenAddress, token.poolFee, _slippage, _deadline);
         uint256 hubBought =  _getHub(wethOut);

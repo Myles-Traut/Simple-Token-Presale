@@ -102,16 +102,17 @@ contract TokenPresaleTest is Test {
             assertEq(hubBought, hubQuote);
             assertEq(tokenPresale.userHubBalance(alice), hubBought);
 
+            // Updates userHubBalance mapping and contract WETH balance correctly
             quote = _quote(1e6, address(usdc));
-            uint256 aliceBalBefore = tokenPresale.userHubBalance(alice);
+            uint256 aliceHubBalBefore = tokenPresale.userHubBalance(alice);
             uint256 presaleBalBefore = tokenPresale.balance();
             hubQuote = tokenPresale.getHubQuote(quote);
             hubBought = tokenPresale.buyHubWithApproval(address(usdc), 1e6, quote);
-            uint256 aliceBalAfter = tokenPresale.userHubBalance(alice);
+            uint256 aliceHubBalAfter = tokenPresale.userHubBalance(alice);
             uint256 presaleBalAfter = tokenPresale.balance();
 
             assertGe(presaleBalAfter, presaleBalBefore + quote);
-            assertEq(aliceBalAfter, aliceBalBefore + hubQuote);
+            assertEq(aliceHubBalAfter, aliceHubBalBefore + hubQuote);
         vm.stopPrank();
 
         vm.startPrank(bob);
